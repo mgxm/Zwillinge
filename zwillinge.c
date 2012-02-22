@@ -11,16 +11,29 @@
 long int filesProcessed = 0;
 long int totalFiles = 0;
 
+int count_file_in_folder(char *dir);
 void scan_folder(char *dir);
 char *get_binary_of_file(char *pathToFile);
 char *get_sha1(char *binary);
+void write_uri_file(char *urifile);
 void write_log(char *filenameerror);
 static inline void loadBar(int x, int n, int r, int w);
 
 int main(int argc, char const *argv[]) {
 
-	scan_folder((char*)argv[1]);
-	printf("Files processed: %ld\n", filesProcessed);
+	if (count_file_in_folder((char*)argv[1]) == 1) {
+		printf("\n\n\033[22;32mOK !");
+		printf("\n\n\033[22;32mAnalyzed Files: %ld\n\n", totalFiles);
+		
+		/* printf("\n\n\033[22;31mSearching equals..."); */
+		
+		printf("\033[22;31mSearching equal files...\n\n");
+		
+		scan_folder((char*)argv[1]);
+		
+		printf("\n\n\033[22;32mOK !");
+		printf("\n\n\033[22;32mAnalyzed Files: %ld\n", totalFiles);
+	}
 				
 	return 0;
 }
@@ -66,7 +79,7 @@ char *get_sha1(char *binary)
         fprintf(stderr, "sha1: Could not compute message digest\n");
     }
     else {
-        sprintf(buffer, "%x%x%x%x%x\n",	sha.Message_Digest[0],
+        sprintf(buffer, "%x%x%x%x%x",	sha.Message_Digest[0],
 										sha.Message_Digest[1],
 										sha.Message_Digest[2],
 										sha.Message_Digest[3],
@@ -75,6 +88,41 @@ char *get_sha1(char *binary)
 		strcpy(result, buffer);
 		return result;
     }
+}
+
+int count_file_in_folder(char *dir)
+{
+	DIR *dp;
+	struct dirent *ep;
+	char path[PATH_MAX +1];
+	char msgError[PATH_MAX +1];
+	
+	printf("\033[22;31mAnalyzing folders...");
+	printf("\r");
+	fflush(stdout);
+	
+	dp = opendir(dir);
+	if (dp != NULL) {
+		while (ep = readdir (dp)) {
+			if (ep->d_type == DT_REG) {
+				totalFiles++;
+			}
+			if (ep->d_type == DT_DIR) {
+				if ((strcmp(ep->d_name, ".") != 0) && (strcmp(ep->d_name, "..") != 0)) {
+					memset(path, 0, sizeof(path));
+					
+					sprintf(path, "%s/%s", dir, ep->d_name);
+					count_file_in_folder(path);
+				}
+			}
+		}
+		(void) closedir (dp);
+		return 1;
+	}
+	else {
+		sprintf(msgError,"Could't open the directory - %s", dir);
+		perror(msgError);
+	}	
 }
 
 void scan_folder(char *dir)
@@ -93,14 +141,15 @@ void scan_folder(char *dir)
 			
 			if (ep->d_type != DT_DIR) {
 				if (ep->d_type == DT_REG) {
-					totalFiles++;
-					/* loadBar(filesProcessed,100,50,30); */
-					/* printf("%ld-%ld\n", count, filesProcessed); */
+					filesProcessed++;
+					loadBar(filesProcessed,totalFiles,50,50);
+					/* printf("%ld-%ld\n", filesProcessed, totalFiles); */
 				
 					sprintf(fullpath,"%s/%s", dir, ep->d_name);
-					/* binaryfile = get_binary_of_file(fullpath);
-						sha1 = get_sha1(binaryfile);
-						printf("%s - %s\n", fullpath, sha1); */
+					/* write_uri_file(fullpath); */
+					binaryfile = get_binary_of_file(fullpath);
+					sha1 = get_sha1(binaryfile);
+					/* printf("%s - %s\n", fullpath, sha1); */
 				}	
 			}
 			
@@ -120,6 +169,19 @@ void scan_folder(char *dir)
 		sprintf(msgError,"Could't open the directory - %s", dir);
 		perror(msgError);
 	}	
+}
+
+void write_uri_file(char *urifile)
+{
+	FILE *urifp;
+		
+	if ((urifp = fopen("uri", "a+")) == NULL) {
+		printf("write uri: Could not open the file");
+		exit(1);
+	} else {
+		fprintf(urifp, "%s\n", urifile);
+		fclose(urifp);
+	}
 }
 
 void write_log(char *filenameerror)
@@ -169,7 +231,7 @@ int insert(sqlite3 *objconnection, char *sha1, char *filepath)
 // Process has done i out of n rounds,
 // and we want a bar of width w and resolution r.
 static inline void loadBar(int x, int n, int r, int w)
-{
+{;
     // Only update r times.
     if ( x % (n/r) != 0 ) return;
  
@@ -186,6 +248,9 @@ static inline void loadBar(int x, int n, int r, int w)
  
     for (x=c; x<w; x++)
        printf(" ");
+
+	if(x==n)
+		printf("OKOKOKO");
  
     // ANSI Control codes to go back to the
     // previous line and clear it.
